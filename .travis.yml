@@ -7,9 +7,23 @@ services: docker
 # ③ インストールの前に何を実行するか。コンテナを起動。
 before_install: 
   - docker-compose up --build -d
+  # 1.HerokuのDockerレジストリにログイン
+  - docker login -u "$HEROKU_USERNAME" -p "$HEROKU_API_KEY" registry.heroku.com
 
 # ④ DBの準備
 script:
   - docker-compose exec --env 'RAILS_ENV=test' web rails db:create
   - docker-compose exec --env 'RAILS_ENV=test' web rails db:migrate
   - docker-compose exec --env 'RAILS_ENV=test' web rails test  # ⑤ テストの実行
+
+deploy:
+  provider: script
+  script:
+    # 2.本番環境用のDockerfileをビルド（image作成）
+    docker build -t registry.heroku.com/$HEROKU_APP_NAME/web -f Dockerfile.prod .;
+    # 3.HerokuのDockerレジストリに本番環境用imageをpush
+    docker push registry.heroku.com/$HEROKU_APP_NAME/web;
+    # 4.アプリを起動
+    heroku run --app $HEROKU_APP_NAME rails db:migrate;
+  on:
+    branch: master # デプロイはmasterにmergeされたときだけ。
